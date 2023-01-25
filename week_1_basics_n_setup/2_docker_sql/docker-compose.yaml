@@ -17,3 +17,5 @@ services:
     ports:
       - "8080:80"
     
+    links:
+      - pgdatabase
