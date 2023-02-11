@@ -14,14 +14,36 @@ def write_local(df: pd.DataFrame, path: str) -> Path:
     parquet_path = Path(f"data/fhv/{path}")
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     # NOTE the stream=True parameter below
-    with open(parquet_path, 'wb') as f:
-        df.to_parquet()
+    df.to_parquet(path=parquet_path)
     return parquet_path
 
-@task(retries=3)
+
+@task(retries=3, log_prints=True)
 def fetch(dataset_url: str) -> pd.DataFrame:
-    """Read taxi data from web into pandas DataFrame"""
-    df = pd.read_csv(dataset_url)
+    """Read gzipped csv data from web into pandas DataFrame"""
+    df = None
+    try:
+        df = pd.read_csv(dataset_url, encoding='utf-8')
+    except:
+        for encoding in ["cp1252", "iso-8859-1", "latin1", "utf-16"]:
+            try:
+                df = pd.read_csv(dataset_url, encoding=encoding)
+            except:
+                continue
+    if df is not None:
+        print(df.dtypes)
+        return df
+    raise Exception(f"Could not decode {dataset_url}")
+
+
+@task(log_prints=True)
+def clean(df: pd.DataFrame) -> pd.DataFrame:
+    """Fix dtype issues"""
+    df["DOlocationID"] = pd.to_numeric(df["DOlocationID"], downcast="float")
+    df["PUlocationID"] = pd.to_numeric(df["PUlocationID"], downcast="float")
+    df["SR_Flag"] = pd.to_numeric(df["SR_Flag"], downcast="float")
+    df["pickup_datetime"] = pd.to_datetime(df["pickup_datetime"], infer_datetime_format=True)
+    df["dropOff_datetime"] = pd.to_datetime(df["dropOff_datetime"], infer_datetime_format=True)
     return df
 
 
@@ -39,6 +61,7 @@ def etl_web_to_gcs(year: int, month: int) -> None:
     month_str = "{:02d}".format(month)
     dataset_url = f"https://github.com/DataTalksClub/nyc-tlc-data/releases/download/fhv/fhv_tripdata_{year}-{month_str}.csv.gz"
     df = fetch(dataset_url)
+    df = clean(df)
     parquet_path = write_local(df, f"fhv_tripdata_{year}-{month_str}.parquet")
     write_gcs(parquet_path)
 
@@ -58,4 +81,4 @@ def etl_parent_flow(
 
 
 if __name__ == "__main__":
-    etl_parent_flow(years=[2020])
+    etl_parent_flow(years=[2019])

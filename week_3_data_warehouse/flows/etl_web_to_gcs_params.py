@@ -9,7 +9,7 @@ from datetime import timedelta
 
 @task(retries=3)
 def fetch(dataset_url: str) -> Path:
-    """Read taxi data from web into pandas DataFrame"""
+    """Get gzipped csv data files from web and save to local storage"""
     path = Path(f"data/fhv/{dataset_url.split('/')[-1]}")
     path.parent.mkdir(parents=True, exist_ok=True)
     # NOTE the stream=True parameter below
@@ -23,7 +23,7 @@ def fetch(dataset_url: str) -> Path:
 
 @task(retries=3)
 def write_gcs(path: Path) -> None:
-    """Upload local parquet file to GCS"""
+    """Upload local gzipped csv files to GCS"""
     gcs_block = GcsBucket.load("zoom-gcs")
     gcs_block.upload_from_path(from_path=path, to_path=path)
     return
