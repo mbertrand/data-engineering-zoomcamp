@@ -1,0 +1,8 @@
+prefect-gcp[cloud_storage]==0.2.4
+pystac-client
+sat-search
+rasterio[s3]
+pyproj
+boto3
+
+jupyter
